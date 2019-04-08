@@ -1,0 +1,56 @@
+language: julia
+os:
+  - linux
+julia:
+  - 0.6
+notifications:
+  email: false
+git:
+  depth: 99999999
+cache:
+  timeout: 1000
+  directories:
+    - downloads
+env:
+  global:
+    - BINARYBUILDER_DOWNLOADS_CACHE=downloads
+    - BINARYBUILDER_AUTOMATIC_APPLE=true
+  # Our build takes too long for one job, so split targets across multiple jobs
+  matrix:
+    - TARGET=x86_64-linux-gnu
+    - TARGET=i686-linux-gnu
+    - TARGET=aarch64-linux-gnu
+    - TARGET=arm-linux-gnueabihf
+    - TARGET=powerpc64le-linux-gnu
+    - TARGET=x86_64-apple-darwin14
+   # gettext doesn't build on Windows yet. :(
+   #- TARGET=x86_64-w64-mingw32
+   #- TARGET=i686-w64-mingw32
+sudo: required
+
+jobs:
+  include:
+    - stage: regenerate build.jl
+      script: julia --color=yes build_tarballs.jl --only-buildjl
+      if: tag IS present
+
+# Before anything else, get the latest versions of things
+before_script:
+  - julia -e 'Pkg.clone("https://github.com/JuliaPackaging/BinaryProvider.jl")'
+  - julia -e 'Pkg.clone("https://github.com/JuliaPackaging/BinaryBuilder.jl"); Pkg.build()'
+
+script:
+  - julia build_tarballs.jl $TARGET
+
+deploy:
+  provider: releases
+  api_key:
+    # Note; this api_key is only valid for staticfloat/GlibBuilder; you need
+    # to make your own: https://docs.travis-ci.com/user/deployment/releases/
+    secure: KJTA0PAIkgD5YfVkIudm7tQIwswPS3cOP1+gQCny8NXc9wzS5n2ICR3TnDqoRUUMYlXJwjg687Pz6IEZqKCeu0wWigzOShn1roTFaabNiB2AzuIowSZZ8beUKSgK0jyImyvkq7MDSdRj9WpQG8yEP7dzqEZ6r3fKtz/IiPw1WD1InAKYr/gYC6hgerdGMC2nEyonQ3evPeMBfF0uzGq2TdAm2rRt7ZNmOY8tCWVLfI9eynyIvYC4doZ4fA5LxetqET9k4QO379NcfhHswAnof9OchhM5CFZ5iqW14zObV29qbmfMR74HxHnBm4rTxwo0BmpkSmdYpEGkT9zJHRU0SFEF1OXwIr34IZ+iBaQOg/FO+r0xL4FBBwRH5R4RmLj1GknFJmUSWouCOoTffLuMENEuLivbT71PzFMx5eVX+uqHd/tdfyo+T9wqrABoEcgaTUk9ZqPxVqJj4RGUXnaWG8iI0uIFLIcPrBdQ000kQAiYT2rTgNC/TLCEGKtgGdz59Ghq+8P1r0EhYSi581tXjg1gRtma4Fsm4snGaxTjtis6YcyrLsSEW7Wfs8fvVoHLkHicYvXyunM4bixbdhB1yNEKEvQRTDianwbFJ9hd3kymb/0Fz7KRpgk03auaZExdFB+hkwD5d3yQjk1CY3gc4Tpnbwt5bc0sh/sQAksUoVo= 
+  file_glob: true
+  file: products/*
+  skip_cleanup: true
+  on:
+    repo: staticfloat/GlibBuilder
+    tags: true
